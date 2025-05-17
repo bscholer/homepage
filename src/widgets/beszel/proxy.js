@@ -11,6 +11,7 @@ const tokenCacheKey = `${proxyName}__token`;
 const logger = createLogger(proxyName);
 
 async function login(loginUrl, username, password, service) {
+  logger.debug(`Logging into beszel for ${service} with ${username} and ${password}`);
   const authResponse = await httpProxy(loginUrl, {
     method: "POST",
     body: JSON.stringify({ identity: username, password }),
@@ -18,11 +19,14 @@ async function login(loginUrl, username, password, service) {
       "Content-Type": "application/json",
     },
   });
+  logger.debug(`Login response: ${JSON.stringify(authResponse)}`);
 
   const status = authResponse[0];
   let data = authResponse[2];
   try {
+    logger.debug(`Login response body: ${JSON.stringify(data)}`);
     data = JSON.parse(Buffer.from(authResponse[2]).toString());
+    logger.debug(`Parsed login response: ${JSON.stringify(data)}`);
 
     if (status === 200) {
       cache.put(`${tokenCacheKey}.${service}`, data.token);
@@ -56,7 +60,9 @@ export default async function beszelProxyHandler(req, res) {
       let data;
 
       let token = cache.get(`${tokenCacheKey}.${service}`);
+      logger.debug(`Token for ${service}: ${token}`);
       if (!token) {
+        logger.debug(`No token found in cache for ${service}, logging in.`);
         [status, token] = await login(loginUrl, widget.username, widget.password, service);
         if (status !== 200) {
           logger.debug(`HTTP ${status} logging into Beszel: ${JSON.stringify(token)}`);
@@ -82,7 +88,6 @@ export default async function beszelProxyHandler(req, res) {
           return res.status(status).send(data);
         }
 
-        // eslint-disable-next-line no-unused-vars
         [status, , data] = await httpProxy(url, {
           method: "GET",
           headers: {
